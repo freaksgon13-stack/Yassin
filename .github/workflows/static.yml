@@ -1,0 +1,264 @@
+#README.md<!--
+لعبة HTML/JS مُحسّنة — إضافة "أطقم لاعبين" بأسلوب مستوحى من موبايل (F26-style).
+ملاحظة قانونية: لم أستخدم أي أصول أو صور من FIFA أو EA أو أي طرف ثالث. جميع الأطقم واللاعبين مرسومة برمجياً ومُركبة كأصول أصلية "مستوحاة" فقط.
+
+اسم الملف: game.html
+تعليمات: احفظ المحتوى كـ game.html وافتحه في متصفح أو ارفعه لمستودع GitHub (شرح في README المضمن).
+
+التغييرات الرئيسية:
+- واجهة اختيار أطقم (Roster) مستوحاة من موبايل FIFA 26 — تُغيّر ألوان اللبس والرقم.
+- متعدد اللاعبين محلي (اختيار جلدين مختلفين للاعب والخصم).
+- README مدمج في الجزء العلوي داخل تعليق لنسخه في GitHub.
+-->
+
+<!doctype html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Heika-like Mini Game — F26-style Skins</title>
+  <style>
+    :root{--bg:#071428;--ground:#123046;--ui:#e6eef8}
+    html,body{height:100%;margin:0;font-family:system-ui,Segoe UI,Arial}
+    body{background:linear-gradient(180deg,var(--bg),#031026);display:flex;align-items:center;justify-content:center;padding:18px}
+    #wrap{width:980px;max-width:98vw;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0.05));border-radius:12px;box-shadow:0 12px 40px rgba(2,6,23,0.7);overflow:hidden}
+    header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;color:var(--ui)}
+    #game{position:relative;height:520px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(0,0,0,0.03));}
+    canvas{display:block;margin:0 auto;background:transparent}
+    #panel{display:flex;gap:12px;padding:12px 18px;align-items:center}
+    .btn{background:#ffd166;border:0;padding:8px 12px;border-radius:8px;font-weight:700;cursor:pointer}
+    .select{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:var(--ui)}
+    .skin-preview{display:flex;gap:8px;align-items:center}
+    .skin-swatch{width:36px;height:44px;border-radius:6px;display:inline-block;box-shadow:inset 0 -6px rgba(0,0,0,0.15)}
+    #info{color:var(--ui);padding:8px 18px 20px}
+    small{opacity:0.7}
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <header>
+      <div>
+        <strong>Heika-like Mini Game</strong>
+        <div style="font-size:13px;opacity:0.8">نسخة مع "أطقم لاعبين" مستوحاة من موبايل</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" id="resetBtn">إعادة تشغيل</button>
+        <button class="btn" id="downloadBtn">تحميل HTML</button>
+      </div>
+    </header>
+
+    <div id="panel">
+      <div>
+        <label style="display:block;color:var(--ui);font-weight:700">اختيار زي اللاعب</label>
+        <select id="skinPicker" class="select">
+          <option value="0">F26-Red (قميص أحمر)</option>
+          <option value="1">F26-Blue (قميص أزرق)</option>
+          <option value="2">F26-Gold (قميص ذهبي)</option>
+          <option value="3">F26-Green (قميص أخضر)</option>
+        </select>
+      </div>
+
+      <div>
+        <label style="display:block;color:var(--ui);font-weight:700">اختيار زي الخصم</label>
+        <select id="enemySkinPicker" class="select">
+          <option value="0">F26-Blue</option>
+          <option value="1">F26-Red</option>
+          <option value="2">F26-Black</option>
+          <option value="3">F26-White</option>
+        </select>
+      </div>
+
+      <div style="flex:1"></div>
+
+      <div style="text-align:right;color:var(--ui)">
+        <div>النقاط: <span id="score">0</span></div>
+        <small>تحكم: مسافة للقفز · أسهم لليسار/اليمين للحركة</small>
+      </div>
+    </div>
+
+    <div id="game">
+      <canvas id="c" width="940" height="420"></canvas>
+    </div>
+
+    <div id="info">
+      <strong>ملاحظة:</strong> هذه الأطقم مرسومة برمجياً — يمكنك رفع الملف `game.html` إلى GitHub و تفعيل GitHub Pages لعرض اللعبة مباشرة.
+    </div>
+  </div>
+
+<script>
+// ======= إعدادات اللعبة (مبنية) =======
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width; const H = canvas.height;
+let score = 0; let level = 1; let gameOver = false;
+
+// تعريف الأطقم (ألوان بسيطة تمثل زي كرة قدم)
+const SKINS = [
+  {shirt:'#d7263d',shorts:'#1b263b',accent:'#ffd166',number:'#ffffff'}, // red
+  {shirt:'#1e6fb7',shorts:'#0b2545',accent:'#06d6a0',number:'#ffffff'}, // blue
+  {shirt:'#d4af37',shorts:'#3b2f2f',accent:'#0b1220',number:'#000000'}, // gold
+  {shirt:'#2bb673',shorts:'#0f3d2f',accent:'#e9f5ef',number:'#000000'}  // green
+];
+
+// العناصر
+const groundY = H - 66;
+const player = {x:120,y:groundY-58,w:36,h:58,vy:0,gravity:1400,onGround:true,skin:0,num:26};
+const enemy = {x:W-160,y:groundY-58,w:36,h:58,vy:0,skin:1,num:6};
+let obstacles = [];
+
+// UI refs
+const scoreEl = document.getElementById('score');
+const skinPicker = document.getElementById('skinPicker');
+const enemySkinPicker = document.getElementById('enemySkinPicker');
+const resetBtn = document.getElementById('resetBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+
+skinPicker.addEventListener('change', ()=>{ player.skin = parseInt(skinPicker.value,10); });
+enemySkinPicker.addEventListener('change', ()=>{ enemy.skin = parseInt(enemySkinPicker.value,10); });
+resetBtn.addEventListener('click', resetGame);
+
+// تحميل ملف جاهز
+downloadBtn.addEventListener('click', ()=>{
+  const blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = 'game.html'; a.click(); URL.revokeObjectURL(url);
+});
+
+// فيزياء وفعلية اللعب
+let keys = {};
+window.addEventListener('keydown', e=>{ keys[e.key]=true; if(e.key===' '){ if(player.onGround) player.vy = -520; e.preventDefault(); } });
+window.addEventListener('keyup', e=>{ keys[e.key]=false; });
+
+function resetGame(){ score=0; level=1; gameOver=false; obstacles=[]; player.x=120; enemy.x=W-160; updateUI(); }
+
+function updateUI(){ scoreEl.textContent = Math.floor(score); }
+
+function spawnObstacle(){ const h = 24 + Math.random()*44; const w = 28 + Math.random()*30; obstacles.push({x:W+30,y:groundY-h,w,h,speed:200+level*30}); }
+
+function update(dt){ if(gameOver) return;
+  // player physics
+  player.vy += player.gravity * dt; player.y += player.vy * dt; if(player.y + player.h >= groundY){ player.y = groundY - player.h; player.vy = 0; player.onGround = true; } else player.onGround = false;
+  // movement
+  if(keys['ArrowRight']) player.x += 220*dt; if(keys['ArrowLeft']) player.x -= 220*dt; player.x = Math.max(8, Math.min(W-player.w-8, player.x));
+
+  // enemy simple AI: moves slightly and jumps randomly
+  enemy.vy += 1200*dt; enemy.y += enemy.vy*dt; if(enemy.y + enemy.h >= groundY){ enemy.y = groundY - enemy.h; enemy.vy = 0; }
+  if(Math.random() < 0.004) { if(enemy.y + enemy.h >= groundY) enemy.vy = -480; }
+
+  // spawn obstacles
+  if(Math.random() < 0.016) spawnObstacle();
+  for(let i=obstacles.length-1;i>=0;i--){ const ob = obstacles[i]; ob.x -= ob.speed*dt; if(ob.x + ob.w < -40) { obstacles.splice(i,1); score += 8; } }
+  score += dt*6*(1+level*0.1);
+  if(score > level*200) level++;
+  updateUI();
+}
+
+function rectsCollide(a,b){ return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + (b.h||0) && a.y + a.h > b.y; }
+
+function drawPlayer(p, skinIdx, flip=false){ const s = SKINS[skinIdx] || SKINS[0]; // draw body
+  const px = p.x, py = p.y, pw = p.w, ph = p.h;
+  // body (shirt)
+  ctx.fillStyle = s.shirt; roundRect(ctx, px, py+6, pw, ph-20, 6); ctx.fill();
+  // shorts
+  ctx.fillStyle = s.shorts; roundRect(ctx, px, py+ph-20, pw, 12, 4); ctx.fill();
+  // head
+  ctx.beginPath(); ctx.fillStyle = '#f2d6b3'; ctx.arc(px+pw/2, py+10, 9, 0, Math.PI*2); ctx.fill();
+  // number on back (approx)
+  ctx.fillStyle = s.number; ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(p.num || '', px+pw/2, py+ph-6);
+}
+
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+function drawObstacle(o){ ctx.fillStyle = 'rgba(230,70,90,0.95)'; roundRect(ctx, o.x, o.y, o.w, o.h, 6); ctx.fill(); }
+
+function render(){ ctx.clearRect(0,0,W,H);
+  // background
+  const g = ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#071428'); g.addColorStop(1,'#031026'); ctx.fillStyle = g; ctx.fillRect(0,0,W,H);
+  // ground
+  ctx.fillStyle = '#0f4b66'; ctx.fillRect(0,groundY,W,H-groundY);
+  // player & enemy
+  drawPlayer(player, player.skin);
+  drawPlayer(enemy, enemy.skin);
+  // obstacles
+  obstacles.forEach(drawObstacle);
+}
+
+let last = performance.now(); function loop(t){ const dt = Math.min(0.05, (t-last)/1000); last = t; update(dt); render(); requestAnimationFrame(loop); }
+resetGame(); requestAnimationFrame(loop);
+
+// util touch
+canvas.addEventListener('mousedown', ()=>{ if(player.onGround) player.vy = -520; });
+canvas.addEventListener('touchstart', (e)=>{ e.preventDefault(); if(player.onGround) player.vy = -520; });
+
+</script>
+</body>
+</html>
+
+
+تمام يا ياسين — خلّيت اللعبة تدعم أطقم مستوحاة من موبايل (F26-style) وتقدر تختار زي اللاعب وخصمه. عملت تحديث للملف داخل المساحة (نفس المستند اللي عملته قبلاً).
+
+ملاحظات مهمة:
+
+ما استخدمت أي محتوى محمي أو صور من FIFA/EA — كل الأطقم مرسومة برمجياً وبألوان و أرقام فقط (علشان مافي مشكلة حقوق).
+
+الملف الآن جاهز: اسمه داخل الـCanvas هو نفس المستند (game.html).
+
+
+لو عايز أعمل أيّ من الحاجات الجاية دلوقتي فوراً:
+
+1. أعمل لك README كامل للريبو جاهز للنشر.
+
+
+2. أحول المشروع لمجلد منظم (assets/, css/, js/) وأعمل ZIP تنزله.
+
+
+3. أعمل لك الريبو على GitHub (محتاج صلاحية منك أو تزويدي باسم المستخدم علشان أوجهك بخطوات رفع سريعة).
+
+
+4. أضيف أصوات ومؤثرات، أو أحط صور حقيقية (لأشخاص مشهورين) — ملاحظة: لو تحب صور لاعب حقيقي لازم تكون لديك تراخيص أو صور مرخّصة لتفادي حقوق النشر.
+
+
+
+قلّي أي واحد من الأربع تختار وابدأ أعدّه لك فوراً. Simple workflow for deploying static content to GitHub Pages
+name: Deploy static content to Pages
+
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["main"]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # Single deploy job since we're just deploying
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          # Upload entire repository
+          path: '.'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
